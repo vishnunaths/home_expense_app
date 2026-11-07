@@ -47,6 +47,8 @@ h2{font-size:16px;color:var(--mute);margin:24px 0 8px;font-weight:600}
 <script>
 const CSV_URL='https://docs.google.com/spreadsheets/d/e/2PACX-1vScboKHs-qLBgSEwsfF-Rxz5DV7YUiTXTPMVssBSR_jB0CEVDtn45bn467A4XTglQ/pub?output=csv';
 const PRESETS=[50,100,200,500,1000,5000,10000];
+const SCRIPT_URL='';  // paste your Apps Script web app URL here
+const KEY='';         // paste your secret word here (same as in the script)
 const $=id=>document.getElementById(id);
 let header=[],data=[],path=[],amount='',dayOff=0,entries=[];
 
@@ -85,9 +87,15 @@ function render(){
  m.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{const k=b.dataset.k;if(k=='C')amount='';else if(k=='⌫')amount=amount.slice(0,-1);else if(amount.length<9)amount=(amount+k).replace(/^0+/,'');render()});
  $('dm').onclick=()=>{dayOff--;render()};$('dp').onclick=()=>{if(dayOff<0){dayOff++;render()}};
  $('save').onclick=save}
-function save(){entries.unshift({d:dateStr(),p:path.slice(),a:+amount,t:Date.now()});store('entries',JSON.stringify(entries));
+function save(){entries.unshift({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),d:dateStr(),p:path.slice(),a:+amount,t:Date.now()});store('entries',JSON.stringify(entries));sync();
  path=[];amount='';dayOff=0;const t=$('toast');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1400);render()}
-function recent(){if(!entries.length)return'';return'<h2>Recent entries</h2>'+entries.slice(0,6).map((e,i)=>'<div class="rec"><div>'+nice(e.p.slice(1).join(' › '))+'<small>'+e.d+'</small></div><b class="'+(e.p[0]=='In'?'in':'out')+'">'+(e.p[0]=='In'?'+':'−')+e.a.toLocaleString('en-IN')+'</b><button data-del="'+i+'" aria-label="Delete entry">✕</button></div>').join('')}
+let syncing=false;
+async function sync(){if(!SCRIPT_URL||syncing)return;syncing=true;
+ try{for(const e of entries.slice().reverse()){if(e.s)continue;
+  const r=await fetch(SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({k:KEY,e:{id:e.id,d:e.d,p:e.p,a:e.a}})});
+  const j=await r.json();if(!j.ok)break;e.s=1;store('entries',JSON.stringify(entries))}}catch(x){}
+ syncing=false;if(!path.length)render()}
+function recent(){if(!entries.length)return'';return'<h2>Recent entries</h2>'+entries.slice(0,6).map((e,i)=>'<div class="rec"><div>'+nice(e.p.slice(1).join(' › '))+'<small>'+e.d+(SCRIPT_URL&&!e.s?' · not synced yet':'')+'</small></div><b class="'+(e.p[0]=='In'?'in':'out')+'">'+(e.p[0]=='In'?'+':'−')+e.a.toLocaleString('en-IN')+'</b><button data-del="'+i+'" aria-label="Delete entry">✕</button></div>').join('')}
 function bindRec(){document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{if(confirm('Delete this entry?')){entries.splice(+b.dataset.del,1);store('entries',JSON.stringify(entries));render()}})}
 
 (async()=>{
@@ -95,7 +103,7 @@ function bindRec(){document.querySelectorAll('[data-del]').forEach(b=>b.onclick=
  let t=null;
  try{const r=await fetch(CSV_URL);if(!r.ok)throw 0;t=await r.text();store('csv',t)}catch(e){t=store('csv')}
  if(!t){$('msg').textContent='Could not load categories from your sheet. Check the internet connection and reload.';return}
- build(t);render();
+ build(t);render();sync();
  if('serviceWorker' in navigator){}
 })();
 </script>
