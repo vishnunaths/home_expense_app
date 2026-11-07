@@ -57,10 +57,10 @@ h2{font-size:16px;color:var(--mute);margin:24px 0 8px;font-weight:600}
 <script>
 const CSV_URL='https://docs.google.com/spreadsheets/d/e/2PACX-1vScboKHs-qLBgSEwsfF-Rxz5DV7YUiTXTPMVssBSR_jB0CEVDtn45bn467A4XTglQ/pub?output=csv';
 const PRESETS=[50,100,200,500,1000,5000,10000];
-const SCRIPT_URL='';  // paste your Apps Script web app URL here
-const CLIENT_ID='';    // Google OAuth client ID (for the summary)
-const SHEET_ID='';     // ID of your private entries sheet
-const KEY='';         // paste your secret word here (same as in the script)
+const SCRIPT_URL='https://script.google.com/macros/s/AKfycbwyNx82Mip6fY6XdlKVQcdlkKqDnsRyCvSM4AmszB1rILOhnHrQZT_wAxYF0pnn3ZEF/exec';  // paste your Apps Script web app URL here
+const CLIENT_ID='850392329831-30ugaib56rm7hqvv09ckil6tm4m190a1.apps.googleusercontent.com';    // Google OAuth client ID (for the summary)
+const SHEET_ID='1q3zsaiILZR4xUJCPMTQK5cg112J1dKDbNxumHcnz59c';     // ID of your private entries sheet
+const KEY='NIYuV';         // paste your secret word here (same as in the script)
 const $=id=>document.getElementById(id);
 let header=[],data=[],path=[],amount='',dayOff=0,entries=[],sum=false,mOff=0,rows=null,token=null,err='',open={};
 
