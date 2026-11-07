@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f5c56">
+<title>Expense Tap</title>
+<style>
+:root{--bg:#eef2f3;--card:#fff;--ink:#16242b;--mute:#5d6f78;--line:#d3dde0;--acc:#0f5c56;--accink:#fff;--out:#b0452f;--ok:#2e7d4f;color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root{--bg:#10171a;--card:#1a2327;--ink:#e6eef0;--mute:#93a6ad;--line:#2b383d;--acc:#4fb3a9;--accink:#08201d;--out:#e0856f;--ok:#6cc590}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{padding:env(safe-area-inset-top) 12px calc(env(safe-area-inset-bottom) + 20px);max-width:560px;margin:0 auto}
+header{display:flex;align-items:center;gap:8px;padding:12px 0;position:sticky;top:0;background:var(--bg);z-index:2}
+#back{min-width:48px;height:48px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:22px}
+#crumb{flex:1;font-weight:600;overflow-wrap:anywhere}
+#crumb small{display:block;color:var(--mute);font-weight:400}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.grid button,.pad button,.pre button{min-height:60px;padding:10px;border-radius:14px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-weight:600;overflow-wrap:anywhere}
+.grid button:active,.pad button:active,.pre button:active{background:var(--acc);color:var(--accink)}
+.big button{min-height:96px;font-size:24px}
+#amt{font-size:42px;font-weight:700;text-align:right;padding:10px 4px;font-variant-numeric:tabular-nums}
+.pre{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
+.pre button{min-height:52px;padding:6px}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.pad button{min-height:62px;font-size:24px}
+.date{display:flex;align-items:center;justify-content:space-between;margin:10px 0;color:var(--mute)}
+.date button{width:52px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:20px}
+#save{width:100%;min-height:64px;margin-top:12px;border:0;border-radius:16px;background:var(--acc);color:var(--accink);font:inherit;font-size:20px;font-weight:700}
+#save:disabled{opacity:.4}
+h2{font-size:16px;color:var(--mute);margin:24px 0 8px;font-weight:600}
+.rec{display:flex;gap:8px;align-items:center;padding:10px 12px;background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:8px}
+.rec div{flex:1;min-width:0;overflow-wrap:anywhere;font-size:15px}
+.rec small{color:var(--mute);display:block}
+.rec b{font-variant-numeric:tabular-nums}
+.rec .in{color:var(--ok)}.rec .out{color:var(--out)}
+.rec button{width:40px;height:40px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--mute)}
+#msg{padding:14px;border-radius:12px;background:var(--card);border:1px solid var(--line)}
+#toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 24px);transform:translateX(-50%);background:var(--ok);color:#fff;padding:12px 20px;border-radius:24px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .2s}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+<header><button id="back" aria-label="Back" hidden>&#8592;</button><div id="crumb">Add entry</div></header>
+<main id="main"><div id="msg">Loading categories…</div></main>
+<div id="toast">Saved</div>
+<script>
+const CSV_URL='https://docs.google.com/spreadsheets/d/e/2PACX-1vScboKHs-qLBgSEwsfF-Rxz5DV7YUiTXTPMVssBSR_jB0CEVDtn45bn467A4XTglQ/pub?output=csv';
+const PRESETS=[50,100,200,500,1000,5000,10000];
+const $=id=>document.getElementById(id);
+let header=[],data=[],path=[],amount='',dayOff=0,entries=[];
+
+function store(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){}return null}
+function parseCSV(t){const rows=[];let r=[],f='',q=false;for(let i=0;i<t.length;i++){const c=t[i];
+ if(q){if(c=='"'){if(t[i+1]=='"'){f+='"';i++}else q=false}else f+=c}
+ else if(c=='"')q=true;else if(c==','){r.push(f);f=''}
+ else if(c=='\n'||c=='\r'){if(c=='\r'&&t[i+1]=='\n')i++;r.push(f);rows.push(r);r=[];f=''}else f+=c}
+ if(f||r.length){r.push(f);rows.push(r)}return rows}
+function build(t){const rows=parseCSV(t);header=rows[0].map(s=>s.trim());data=[];let blank=0;
+ for(const r of rows.slice(1)){if(r.every(s=>!s.trim())){if(++blank>=3)break;continue}blank=0;data.push(r)}}
+const bad=s=>!s||/^insert here$/i.test(s);
+function col(i){const o=[];for(const r of data){const s=(r[i]||'').trim();if(!bad(s)&&!o.includes(s))o.push(s)}return o}
+function find(name,a,b){for(let i=a;i<=Math.min(b,header.length-1);i++)if(header[i]===name)return col(i);return[]}
+// levels: In: type > category > sub ; Out: type > group > category > sub
+function opts(p){
+ if(p.length==0)return col(0);
+ if(p[0]=='In'){if(p.length==1)return col(1);if(p.length==2)return find(p[1],3,11);return[]}
+ if(p.length==1)return col(2);if(p.length==2)return find(p[1],12,18);if(p.length==3)return find(p[2],19,99);return[]}
+function push(v){path.push(v);let o;while((o=opts(path)).length==1)path.push(o[0]);render()}
+function back(){if(!path.length)return;path.pop();while(path.length&&opts(path.slice(0,-1)).length==1)path.pop();amount='';render()}
+
+function dateStr(){const d=new Date();d.setDate(d.getDate()+dayOff);return d.toISOString().slice(0,10).length?new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10):''}
+function nice(s){return s.replace(/_/g,' ')}
+function render(){
+ $('back').hidden=!path.length;
+ $('crumb').innerHTML=path.length?nice(path.join(' › ')):'Add entry<small>Tap In or Out</small>';
+ const o=opts(path),m=$('main');
+ if(o.length){m.innerHTML='<div class="grid'+(path.length==0?' big':'')+'">'+o.map((x,i)=>'<button data-i="'+i+'">'+nice(x)+'</button>').join('')+'</div>'+(path.length==0?recent():'');
+  m.querySelectorAll('.grid button').forEach(b=>b.onclick=()=>push(o[b.dataset.i]));bindRec();return}
+ m.innerHTML='<div id="amt">₹ '+(amount||'0')+'</div><div class="pre">'+PRESETS.map(p=>'<button data-p="'+p+'">'+p+'</button>').join('')+'</div>'+
+  '<div class="pad">'+[1,2,3,4,5,6,7,8,9,'C',0,'⌫'].map(k=>'<button data-k="'+k+'">'+k+'</button>').join('')+'</div>'+
+  '<div class="date"><button id="dm" aria-label="Previous day">−</button><span id="dl">'+(dayOff==0?'Today · ':'')+dateStr()+'</span><button id="dp" aria-label="Next day">+</button></div>'+
+  '<button id="save"'+(amount&&+amount>0?'':' disabled')+'>Save entry</button>';
+ m.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{amount=b.dataset.p;render()});
+ m.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{const k=b.dataset.k;if(k=='C')amount='';else if(k=='⌫')amount=amount.slice(0,-1);else if(amount.length<9)amount=(amount+k).replace(/^0+/,'');render()});
+ $('dm').onclick=()=>{dayOff--;render()};$('dp').onclick=()=>{if(dayOff<0){dayOff++;render()}};
+ $('save').onclick=save}
+function save(){entries.unshift({d:dateStr(),p:path.slice(),a:+amount,t:Date.now()});store('entries',JSON.stringify(entries));
+ path=[];amount='';dayOff=0;const t=$('toast');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1400);render()}
+function recent(){if(!entries.length)return'';return'<h2>Recent entries</h2>'+entries.slice(0,6).map((e,i)=>'<div class="rec"><div>'+nice(e.p.slice(1).join(' › '))+'<small>'+e.d+'</small></div><b class="'+(e.p[0]=='In'?'in':'out')+'">'+(e.p[0]=='In'?'+':'−')+e.a.toLocaleString('en-IN')+'</b><button data-del="'+i+'" aria-label="Delete entry">✕</button></div>').join('')}
+function bindRec(){document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{if(confirm('Delete this entry?')){entries.splice(+b.dataset.del,1);store('entries',JSON.stringify(entries));render()}})}
+
+(async()=>{
+ try{entries=JSON.parse(store('entries')||'[]')}catch(e){entries=[]}
+ let t=null;
+ try{const r=await fetch(CSV_URL);if(!r.ok)throw 0;t=await r.text();store('csv',t)}catch(e){t=store('csv')}
+ if(!t){$('msg').textContent='Could not load categories from your sheet. Check the internet connection and reload.';return}
+ build(t);render();
+ if('serviceWorker' in navigator){}
+})();
+</script>
+</body>
+</html>
