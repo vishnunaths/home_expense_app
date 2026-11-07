@@ -4,7 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f5c56">
-<title>Expense Tap</title>
+<title>NIYuV Finance</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>
 :root{--bg:#eef2f3;--card:#fff;--ink:#16242b;--mute:#5d6f78;--line:#d3dde0;--acc:#0f5c56;--accink:#fff;--out:#b0452f;--ok:#2e7d4f;color-scheme:light dark}
 @media (prefers-color-scheme:dark){:root{--bg:#10171a;--card:#1a2327;--ink:#e6eef0;--mute:#93a6ad;--line:#2b383d;--acc:#4fb3a9;--accink:#08201d;--out:#e0856f;--ok:#6cc590}}
@@ -47,6 +50,15 @@ h2{font-size:16px;color:var(--mute);margin:24px 0 8px;font-weight:600}
 .gh{display:flex;justify-content:space-between;gap:8px;font-weight:600}
 .bar{height:6px;background:var(--line);border-radius:3px;margin:8px 0 2px;overflow:hidden}.bar i{display:block;height:100%;background:var(--acc)}
 .cat{display:flex;justify-content:space-between;gap:8px;padding:8px 0 0;color:var(--mute);font-size:15px}
+.brand{display:flex;align-items:center;gap:10px;font-size:24px;font-weight:800;letter-spacing:-.3px}
+#crumb small{margin-top:2px}
+.big .tin{border-left:7px solid var(--ok)}.big .tout{border-left:7px solid var(--out)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-top:12px}
+.card h3{margin:0 0 10px;font-size:15px;color:var(--mute);font-weight:600}
+.dn{display:flex;gap:14px;align-items:center}.dn svg{width:120px;height:120px;flex:none}
+.lg{flex:1;min-width:0;font-size:14px}.lg div{display:flex;gap:6px;align-items:center;padding:2px 0}
+.lg i{width:10px;height:10px;border-radius:3px;flex:none}.lg span{flex:1;overflow-wrap:anywhere}
+.note{display:block;color:var(--mute);margin-top:10px;font-size:13px}
 </style>
 </head>
 <body>
@@ -57,10 +69,10 @@ h2{font-size:16px;color:var(--mute);margin:24px 0 8px;font-weight:600}
 <script>
 const CSV_URL='https://docs.google.com/spreadsheets/d/e/2PACX-1vScboKHs-qLBgSEwsfF-Rxz5DV7YUiTXTPMVssBSR_jB0CEVDtn45bn467A4XTglQ/pub?output=csv';
 const PRESETS=[50,100,200,500,1000,5000,10000];
-const SCRIPT_URL='https://script.google.com/macros/s/AKfycbwyNx82Mip6fY6XdlKVQcdlkKqDnsRyCvSM4AmszB1rILOhnHrQZT_wAxYF0pnn3ZEF/exec';  // paste your Apps Script web app URL here
-const CLIENT_ID='850392329831-30ugaib56rm7hqvv09ckil6tm4m190a1.apps.googleusercontent.com';    // Google OAuth client ID (for the summary)
-const SHEET_ID='1q3zsaiILZR4xUJCPMTQK5cg112J1dKDbNxumHcnz59c';     // ID of your private entries sheet
-const KEY='NIYuV';         // paste your secret word here (same as in the script)
+const SCRIPT_URL='';  // paste your Apps Script web app URL here
+const CLIENT_ID='';    // Google OAuth client ID (for the summary)
+const SHEET_ID='';     // ID of your private entries sheet
+const KEY='';         // paste your secret word here (same as in the script)
 const $=id=>document.getElementById(id);
 let header=[],data=[],path=[],amount='',dayOff=0,entries=[],sum=false,mOff=0,rows=null,token=null,err='',open={};
 
@@ -87,9 +99,9 @@ function dateStr(){const d=new Date();d.setDate(d.getDate()+dayOff);return d.toI
 function nice(s){return s.replace(/_/g,' ')}
 function render(){
  $('back').hidden=!path.length&&!sum;if(sum)return renderSum();
- $('crumb').innerHTML=path.length?nice(path.join(' › ')):'Add entry<small>Tap In or Out</small>';
+ $('crumb').innerHTML=path.length?nice(path.join(' › ')):brand();
  const o=opts(path),m=$('main');
- if(o.length){m.innerHTML='<div class="grid'+(path.length==0?' big':'')+'">'+o.map((x,i)=>'<button data-i="'+i+'">'+nice(x)+'</button>').join('')+'</div>'+(path.length==0?sumBtn()+recent():'');
+ if(o.length){m.innerHTML='<div class="grid'+(path.length==0?' big':'')+'">'+o.map((x,i)=>'<button class="'+(path.length==0?(x=='In'?'tin':'tout'):'')+'" data-i="'+i+'">'+nice(x)+'</button>').join('')+'</div>'+(path.length==0?dash()+sumBtn()+recent():'');
   m.querySelectorAll('.grid button').forEach(b=>b.onclick=()=>push(o[b.dataset.i]));bindRec();if($('sumb'))$('sumb').onclick=()=>{sum=true;render()};return}
  m.innerHTML='<div id="amt">₹ '+(amount||'0')+'</div><div class="pre">'+PRESETS.map(p=>'<button data-p="'+p+'">'+p+'</button>').join('')+'</div>'+
   '<div class="pad">'+[1,2,3,4,5,6,7,8,9,'C',0,'⌫'].map(k=>'<button data-k="'+k+'">'+k+'</button>').join('')+'</div>'+
@@ -110,6 +122,23 @@ async function sync(){if(!SCRIPT_URL||syncing)return;syncing=true;
 function recent(){if(!entries.length)return'';return'<h2>Recent entries</h2>'+entries.slice(0,6).map((e,i)=>'<div class="rec"><div>'+nice(e.p.slice(1).join(' › '))+'<small>'+e.d+(SCRIPT_URL&&!e.s?' · not synced yet':'')+'</small></div><b class="'+(e.p[0]=='In'?'in':'out')+'">'+(e.p[0]=='In'?'+':'−')+e.a.toLocaleString('en-IN')+'</b><button data-del="'+i+'" aria-label="Delete entry">✕</button></div>').join('')}
 function bindRec(){document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{if(confirm('Delete this entry?')){entries.splice(+b.dataset.del,1);store('entries',JSON.stringify(entries));render()}})}
 
+function brand(){return'<span class="brand"><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--acc)"/><path d="M7 24V13M13 24V9M19 24v-8M25 24V6" stroke="var(--accink)" stroke-width="3" stroke-linecap="round" fill="none"/></svg>NIYuV finance</span><small>Tap In or Out to add an entry</small>'}
+function ymd(d){return new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10)}
+function dash(){
+ const src=rows&&token?rows:entries.map(e=>({d:e.d,t:e.p[0],g:e.p[1]||'',a:e.a}));
+ const k=ymd(new Date()).slice(0,7),f=n=>'₹ '+n.toLocaleString('en-IN');let inn=0,out=0;const gr={},day={};
+ for(let i=6;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);day[ymd(d)]=0}
+ src.forEach(r=>{if(r.d.slice(0,7)==k){if(r.t=='In')inn+=r.a;else{out+=r.a;gr[r.g]=(gr[r.g]||0)+r.a}}if(r.t!='In'&&r.d in day)day[r.d]+=r.a});
+ const note='<small class="note">'+(rows&&token?'Both phones, from your Google Sheet':'This phone only. Sign in under Monthly summary to include both phones.')+'</small>';
+ if(!inn&&!out&&!Object.values(day).some(v=>v))return'<div class="card"><h3>This month</h3>Add your first entry and your charts will appear here.'+note+'</div>';
+ const C=['#0f766e','#c2410c','#4f46e5','#ca8a04','#be185d','#64748b'],list=Object.entries(gr).sort((a,b)=>b[1]-a[1]).slice(0,6);
+ let off=25,arcs='<circle r="15.9155" cx="21" cy="21" fill="none" stroke="var(--line)" stroke-width="6"/>';
+ list.forEach(([n,v],i)=>{const p=out?v/out*100:0;arcs+='<circle r="15.9155" cx="21" cy="21" fill="none" stroke="'+C[i]+'" stroke-width="6" stroke-dasharray="'+p+' '+(100-p)+'" stroke-dashoffset="'+off+'"/>';off-=p});
+ const ds=Object.keys(day),mx=Math.max(...Object.values(day),1);
+ const bars=ds.map((d,i)=>{const h=Math.round(day[d]/mx*42);return'<rect x="'+(i*20+3)+'" y="'+(46-h)+'" width="14" height="'+Math.max(h,1)+'" rx="3" fill="var(--acc)"/><text x="'+(i*20+10)+'" y="58" text-anchor="middle" font-size="8" fill="var(--mute)">'+new Date(d+'T00:00').toLocaleString('en',{weekday:'narrow'})+'</text>'}).join('');
+ return'<div class="tiles" style="margin-top:14px"><div><small>In</small><b class="in">'+f(inn)+'</b></div><div><small>Out</small><b class="out">'+f(out)+'</b></div><div><small>Left</small><b>'+f(inn-out)+'</b></div></div>'+
+ '<div class="card"><h3>Where this month went</h3>'+(out?'<div class="dn"><svg viewBox="0 0 42 42">'+arcs+'</svg><div class="lg">'+list.map(([n,v],i)=>'<div><i style="background:'+C[i]+'"></i><span>'+nice(n)+'</span><b>'+f(v)+'</b></div>').join('')+'</div></div>':'No spending yet this month.')+'</div>'+
+ '<div class="card"><h3>Spending, last 7 days</h3><svg viewBox="0 0 140 62" width="100%" role="img" aria-label="Spending in the last 7 days">'+bars+'</svg>'+note+'</div>'}
 function sumBtn(){return CLIENT_ID&&SHEET_ID?'<button id="sumb" class="sumb">Monthly summary</button>':''}
 function signIn(){try{google.accounts.oauth2.initTokenClient({client_id:CLIENT_ID,scope:'https://www.googleapis.com/auth/spreadsheets.readonly',callback:r=>{if(r.access_token){token=r.access_token;err='';rows=null;renderSum()}}}).requestAccessToken()}catch(e){err='Google sign-in is not ready yet. Wait a moment and try again.';renderSum()}}
 async function loadRows(){$('main').innerHTML='<div id="msg">Loading your entries…</div>';
@@ -142,7 +171,7 @@ function renderSum(){const m=$('main');$('crumb').innerHTML='Monthly summary';
  try{const r=await fetch(CSV_URL);if(!r.ok)throw 0;t=await r.text();store('csv',t)}catch(e){t=store('csv')}
  if(!t){$('msg').textContent='Could not load categories from your sheet. Check the internet connection and reload.';return}
  build(t);render();sync();
- if('serviceWorker' in navigator){}
+ try{if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js')}catch(e){}
 })();
 </script>
 </body>
