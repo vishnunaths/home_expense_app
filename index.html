@@ -38,19 +38,31 @@ h2{font-size:16px;color:var(--mute);margin:24px 0 8px;font-weight:600}
 #msg{padding:14px;border-radius:12px;background:var(--card);border:1px solid var(--line)}
 #toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 24px);transform:translateX(-50%);background:var(--ok);color:#fff;padding:12px 20px;border-radius:24px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .2s}
 #toast.show{opacity:1}
+.sumb{width:100%;min-height:60px;margin-top:12px;border-radius:14px;border:1px solid var(--acc);background:none;color:var(--acc);font:inherit;font-weight:700}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.tiles div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;min-width:0}
+.tiles small{display:block;color:var(--mute)}.tiles b{font-size:16px;overflow-wrap:anywhere}
+.tiles .in{color:var(--ok)}.tiles .out{color:var(--out)}
+.grp{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:8px}
+.gh{display:flex;justify-content:space-between;gap:8px;font-weight:600}
+.bar{height:6px;background:var(--line);border-radius:3px;margin:8px 0 2px;overflow:hidden}.bar i{display:block;height:100%;background:var(--acc)}
+.cat{display:flex;justify-content:space-between;gap:8px;padding:8px 0 0;color:var(--mute);font-size:15px}
 </style>
 </head>
 <body>
 <header><button id="back" aria-label="Back" hidden>&#8592;</button><div id="crumb">Add entry</div></header>
 <main id="main"><div id="msg">Loading categories…</div></main>
 <div id="toast">Saved</div>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
 const CSV_URL='https://docs.google.com/spreadsheets/d/e/2PACX-1vScboKHs-qLBgSEwsfF-Rxz5DV7YUiTXTPMVssBSR_jB0CEVDtn45bn467A4XTglQ/pub?output=csv';
 const PRESETS=[50,100,200,500,1000,5000,10000];
-const SCRIPT_URL='https://script.google.com/macros/s/AKfycbwyNx82Mip6fY6XdlKVQcdlkKqDnsRyCvSM4AmszB1rILOhnHrQZT_wAxYF0pnn3ZEF/exec';  // paste your Apps Script web app URL here
-const KEY='NIYuV';         // paste your secret word here (same as in the script)
+const SCRIPT_URL='';  // paste your Apps Script web app URL here
+const CLIENT_ID='';    // Google OAuth client ID (for the summary)
+const SHEET_ID='';     // ID of your private entries sheet
+const KEY='';         // paste your secret word here (same as in the script)
 const $=id=>document.getElementById(id);
-let header=[],data=[],path=[],amount='',dayOff=0,entries=[];
+let header=[],data=[],path=[],amount='',dayOff=0,entries=[],sum=false,mOff=0,rows=null,token=null,err='',open={};
 
 function store(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){}return null}
 function parseCSV(t){const rows=[];let r=[],f='',q=false;for(let i=0;i<t.length;i++){const c=t[i];
@@ -69,16 +81,16 @@ function opts(p){
  if(p[0]=='In'){if(p.length==1)return col(1);if(p.length==2)return find(p[1],3,11);return[]}
  if(p.length==1)return col(2);if(p.length==2)return find(p[1],12,18);if(p.length==3)return find(p[2],19,99);return[]}
 function push(v){path.push(v);let o;while((o=opts(path)).length==1)path.push(o[0]);render()}
-function back(){if(!path.length)return;path.pop();while(path.length&&opts(path.slice(0,-1)).length==1)path.pop();amount='';render()}
+function back(){if(sum){sum=false;render();return}if(!path.length)return;path.pop();while(path.length&&opts(path).length==1)path.pop();amount='';render()}
 
 function dateStr(){const d=new Date();d.setDate(d.getDate()+dayOff);return d.toISOString().slice(0,10).length?new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10):''}
 function nice(s){return s.replace(/_/g,' ')}
 function render(){
- $('back').hidden=!path.length;
+ $('back').hidden=!path.length&&!sum;if(sum)return renderSum();
  $('crumb').innerHTML=path.length?nice(path.join(' › ')):'Add entry<small>Tap In or Out</small>';
  const o=opts(path),m=$('main');
- if(o.length){m.innerHTML='<div class="grid'+(path.length==0?' big':'')+'">'+o.map((x,i)=>'<button data-i="'+i+'">'+nice(x)+'</button>').join('')+'</div>'+(path.length==0?recent():'');
-  m.querySelectorAll('.grid button').forEach(b=>b.onclick=()=>push(o[b.dataset.i]));bindRec();return}
+ if(o.length){m.innerHTML='<div class="grid'+(path.length==0?' big':'')+'">'+o.map((x,i)=>'<button data-i="'+i+'">'+nice(x)+'</button>').join('')+'</div>'+(path.length==0?sumBtn()+recent():'');
+  m.querySelectorAll('.grid button').forEach(b=>b.onclick=()=>push(o[b.dataset.i]));bindRec();if($('sumb'))$('sumb').onclick=()=>{sum=true;render()};return}
  m.innerHTML='<div id="amt">₹ '+(amount||'0')+'</div><div class="pre">'+PRESETS.map(p=>'<button data-p="'+p+'">'+p+'</button>').join('')+'</div>'+
   '<div class="pad">'+[1,2,3,4,5,6,7,8,9,'C',0,'⌫'].map(k=>'<button data-k="'+k+'">'+k+'</button>').join('')+'</div>'+
   '<div class="date"><button id="dm" aria-label="Previous day">−</button><span id="dl">'+(dayOff==0?'Today · ':'')+dateStr()+'</span><button id="dp" aria-label="Next day">+</button></div>'+
@@ -98,7 +110,33 @@ async function sync(){if(!SCRIPT_URL||syncing)return;syncing=true;
 function recent(){if(!entries.length)return'';return'<h2>Recent entries</h2>'+entries.slice(0,6).map((e,i)=>'<div class="rec"><div>'+nice(e.p.slice(1).join(' › '))+'<small>'+e.d+(SCRIPT_URL&&!e.s?' · not synced yet':'')+'</small></div><b class="'+(e.p[0]=='In'?'in':'out')+'">'+(e.p[0]=='In'?'+':'−')+e.a.toLocaleString('en-IN')+'</b><button data-del="'+i+'" aria-label="Delete entry">✕</button></div>').join('')}
 function bindRec(){document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{if(confirm('Delete this entry?')){entries.splice(+b.dataset.del,1);store('entries',JSON.stringify(entries));render()}})}
 
+function sumBtn(){return CLIENT_ID&&SHEET_ID?'<button id="sumb" class="sumb">Monthly summary</button>':''}
+function signIn(){try{google.accounts.oauth2.initTokenClient({client_id:CLIENT_ID,scope:'https://www.googleapis.com/auth/spreadsheets.readonly',callback:r=>{if(r.access_token){token=r.access_token;err='';rows=null;renderSum()}}}).requestAccessToken()}catch(e){err='Google sign-in is not ready yet. Wait a moment and try again.';renderSum()}}
+async function loadRows(){$('main').innerHTML='<div id="msg">Loading your entries…</div>';
+ try{const r=await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID+'/values/Entries!A2:G?valueRenderOption=UNFORMATTED_VALUE',{headers:{Authorization:'Bearer '+token}});
+  if(r.status==401){token=null}
+  else if(r.status==403||r.status==404){err='This Google account cannot open the entries sheet. Share the sheet with it and try again.'}
+  else if(!r.ok){err='Could not load entries (error '+r.status+').'}
+  else{const j=await r.json();rows=(j.values||[]).map(v=>({d:typeof v[1]=='number'?new Date(Date.UTC(1899,11,30)+v[1]*864e5).toISOString().slice(0,10):String(v[1]||''),t:v[2],g:String(v[3]||''),c:String(v[4]||''),a:+v[6]||0}))}
+ }catch(e){err='Could not reach Google. Check the internet connection.'}
+ renderSum()}
+function renderSum(){const m=$('main');$('crumb').innerHTML='Monthly summary';
+ if(!token){m.innerHTML='<div id="msg">'+(err||'Sign in with the Google account that can open your entries sheet.')+'</div><button id="save" style="margin-top:12px">Sign in with Google</button>';$('save').onclick=signIn;return}
+ if(err){m.innerHTML='<div id="msg">'+err+'</div><button id="save" style="margin-top:12px">Try again</button>';$('save').onclick=()=>{err='';rows=null;renderSum()};return}
+ if(!rows){loadRows();return}
+ const d=new Date();d.setDate(1);d.setMonth(d.getMonth()+mOff);const k=new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,7);
+ let inn=0,out=0;const gr={};
+ rows.filter(r=>r.d.slice(0,7)==k).forEach(r=>{if(r.t=='In')inn+=r.a;else{out+=r.a;const g=gr[r.g]=gr[r.g]||{t:0,c:{}};g.t+=r.a;g.c[r.c]=(g.c[r.c]||0)+r.a}});
+ const f=n=>'₹ '+n.toLocaleString('en-IN'),list=Object.entries(gr).sort((a,b)=>b[1].t-a[1].t);
+ m.innerHTML='<div class="date"><button id="mm" aria-label="Previous month">‹</button><span>'+d.toLocaleString('en-IN',{month:'long',year:'numeric'})+'</span><button id="mp" aria-label="Next month">›</button></div>'+
+ '<div class="tiles"><div><small>In</small><b class="in">'+f(inn)+'</b></div><div><small>Out</small><b class="out">'+f(out)+'</b></div><div><small>Left</small><b>'+f(inn-out)+'</b></div></div>'+
+ (list.length?list.map(([n,g],i)=>'<div class="grp" data-i="'+i+'"><div class="gh"><span>'+nice(n)+'</span><b>'+f(g.t)+'</b></div><div class="bar"><i style="width:'+(out?Math.round(g.t/out*100):0)+'%"></i></div>'+(open[n]?Object.entries(g.c).sort((a,b)=>b[1]-a[1]).map(([c,v])=>'<div class="cat"><span>'+nice(c)+'</span><span>'+f(v)+'</span></div>').join(''):'')+'</div>').join(''):'<div id="msg">No entries this month.</div>')+
+ '<button id="rf" class="sumb">Refresh</button>';
+ $('mm').onclick=()=>{mOff--;renderSum()};$('mp').onclick=()=>{if(mOff<0){mOff++;renderSum()}};
+ m.querySelectorAll('.grp').forEach(el=>el.onclick=()=>{const n=list[el.dataset.i][0];open[n]=!open[n];renderSum()});
+ $('rf').onclick=()=>{rows=null;renderSum()}}
 (async()=>{
+ $('back').onclick=back;
  try{entries=JSON.parse(store('entries')||'[]')}catch(e){entries=[]}
  let t=null;
  try{const r=await fetch(CSV_URL);if(!r.ok)throw 0;t=await r.text();store('csv',t)}catch(e){t=store('csv')}
